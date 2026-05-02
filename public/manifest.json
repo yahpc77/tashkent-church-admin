@@ -1,0 +1,20 @@
+{
+    "short_name": "TKC 행정",
+    "name": "타슈켄트 한인교회 교적 관리",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "/logo.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#1e1e2f",
+    "background_color": "#1e1e2f"
+}
