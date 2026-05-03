@@ -27,82 +27,62 @@ const MODEL_PRIORITY = [
     "gemini-2.5-flash"
 ];
 
-// ── 고도화된 교적 카드 프롬프트 ───────────────────────────────────────────────
-const SYSTEM_PROMPT = `너는 타슈켄트 한인교회 행정 시스템의 OCR 엔진이야.
-이 사진은 교인등록카드(교적 카드)야. 카드에 적힌 모든 수기/인쇄 정보를 정밀 분석해서
-반드시 아래 JSON 형식으로만 응답해. 마크다운 코드블록(\`\`\`json, \`\`\`)이나 부가 설명은 절대 금지.
+// ── 고도화된 지능형 통합 등록 프롬프트 ───────────────────────────────────────────────
+const SYSTEM_PROMPT = `너는 타슈켄트 한인교회 행정 시스템의 최고 수준 OCR 엔진이자 데이터 분석가야.
+과거의 '가족' 중심 틀을 완전히 버리고, 모든 인원을 '독립적인 개인'으로 추출한다.
 
+업로드되는 이미지는 명단(표)이거나 가족 등록 카드, 혹은 개인 등록 카드일 수 있다.
+제일 먼저 문서의 타입(documentType)을 판별하라.
+- 'list' (성도 명단 표): 여러 명의 행을 추출.
+- 'family' (가족 등록 카드): 세대주, 배우자, 자녀 관계를 파악하여 추출.
+- 'individual' (개인 등록 카드): 1인 정보 추출.
+
+결과값은 반드시 아래 JSON 포맷으로 반환해야 한다:
 {
-  "head": {
-    "name": "세대주 이름",
-    "phone": "세대주 전화번호",
-    "address": "주소",
-    "birth": "생년월일 (YYYY-MM-DD 형식으로 변환)",
-    "birthYear": "생년월일이 불완전하거나 연도만 있는 경우 4자리 연도만 추출 (예: 1985). 알 수 없으면 빈칸",
-    "role": "직분 — 아래 [직분 규칙] 참고",
-    "residence": "거주지 — '타슈켄트' 또는 '한국' 중 하나"
-  },
+  "documentType": "list" | "family" | "individual",
   "members": [
     {
-      "name": "가족 이름",
-      "relation": "관계 (배우자 / 자녀1 / 자녀2 / 기타)",
-      "phone": "전화번호",
-      "birth": "생년월일 (YYYY-MM-DD 형식으로 변환)",
-      "birthYear": "생년월일이 불완전하거나 연도만 있는 경우 4자리 연도만 추출 (예: 1985). 알 수 없으면 빈칸",
+      "name": "성도 이름",
+      "relation": "관계 (세대주/본인/배우자/자녀 등 기재된 대로 추출. 표 명단이면 '본인' 또는 빈칸)",
+      "phone": "전화번호 (숫자와 +만 남길 것)",
+      "birth": "YYYY-MM-DD (생년월일. 불완전하면 연도만)",
       "role": "직분 — 아래 [직분 규칙] 참고",
-      "residence": "거주지 — '타슈켄트' 또는 '한국' 중 하나"
+      "residence": "거주지 — '타슈켄트' 또는 '한국'",
+      "company": "회사/직장 (있을 경우만)",
+      "address": "주소 (있을 경우만)",
+      "metadata": {
+        "이전교회": "값",
+        "가훈": "값"
+      }
     }
-  ],
-  "metadata": {
-    "이전교회": "값 (카드에 있을 경우만 포함)",
-    "입국일": "YYYY-MM-DD (카드에 있을 경우만 포함)",
-    "학교": "값 (카드에 있을 경우만 포함)",
-    "직업": "값 (카드에 있을 경우만 포함)",
-    "가훈": "값 (카드에 있을 경우만 포함)",
-    "기도제목": "값 (카드에 있을 경우만 포함)",
-    "세례일": "YYYY-MM-DD (카드에 있을 경우만 포함)",
-    "등록일": "YYYY-MM-DD (카드에 있을 경우만 포함)"
-  }
+  ]
 }
 
+【데이터 추출 핵심 규칙】
+1. [X표시 필터링]: 'list' 타입 명단에서 이름 칸이나 이름 주변에 'X' 표시, 취소선, 또는 귀임/삭제 등의 표시가 명확히 있는 사람은 **무조건 추출 대상에서 제외**하라. (배열에 포함시키지 말 것)
+2. [전수 조사]: X표시가 없는 사람은 인원수 제한 없이 100% 다 추출할 것.
+3. [독립 객체]: 가족으로 묶는 별도의 구조(families)를 만들지 말고, 오직 하나의 "members" 배열 안에 모든 개인을 평면적(Flat)으로 나열할 것.
+4. [직분 규칙]: '목사', '장로', '권사', '안수집사', '집사', '성도' 중 하나. 수기(흘림체) 판독 주의. 비어있으면 기본값 '성도'.
+5. [거주지 규칙]: '한국', '귀국', 'Korea' 등이 보이면 '한국', 나머지는 모두 '타슈켄트'.
+6. 빈칸은 빈 문자열("")로 채울 것.
+
 【직분 규칙 — 가장 중요한 지시, 반드시 따를 것】
+- 수기(흘림체) 판독에 주의하라.
+- 각 인원의 role 필드에 다음 6가지 직분 중 하나로 치환하여 반환하라:
+  - 목사, 장로, 권사
+  - 안수집사 ('집사'보다 먼저 확인)
+  - 집사
+  - 성도 (비어있거나 알 수 없으면 기본값)
 
-  ▶ 이 교적 카드는 표(Table) 구조로 되어 있다.
-  ▶ 표의 좌측 열에는 항목 이름(행 레이블)이 나열되어 있고,
-    우측으로 세대주, 배우자, 자녀1, 자녀2 등의 인물 열(Column)이 이어진다.
-
-  ★ 직분 추출 절차 (반드시 이 순서대로 수행):
-    1. 표의 행(Row) 레이블 중에서 '이전직분', '이전 직분', '직분' 등의 텍스트를 찾아라.
-    2. 해당 행에서 각 인물(세대주, 배우자, 자녀 등)의 열(Column)과 교차하는 셀의 텍스트를 읽어라.
-    3. 그 셀의 텍스트를 아래 6가지 직분 중 하나로 치환하여 head.role 및 members[].role 필드에 개별적으로 각각 직접(direct) 반환하라.
-    4. 이 카드 양식에는 '현재 직분' 란이 없다. '이전직분' 행이 실질적인 현재 직분 정보다.
-
-  ★ 강력 경고: 직분 정보를 metadata summary 같은 곳에 뭉뚱그려 넣지 말고, 반드시 개별 인원의 객체(head.role, members[i].role)에 각각 매핑해야 한다!
-  ★ 수기(흘림체) 판독 주의: 직분은 펜으로 직접 기입된 경우가 많다. 흘림체를 포함해 최대한 판독하라.
-
-  치환 규칙 (아래 6가지 중 하나만 반환):
-  - 목사     : 셀에 '목사', '담임', '부목사' 등이 보이면
-  - 장로     : 셀에 '장로'가 보이면
-  - 권사     : 셀에 '권사'가 보이면
-  - 안수집사 : 셀에 '안수집사'가 보이면 ← 반드시 '집사'보다 먼저 확인
-  - 집사     : 셀에 '집사'가 보이면 ('안수집사'는 위 항목으로 처리)
-  - 성도     : 셀이 비어있거나, 읽을 수 없거나, 위 어디에도 해당하지 않으면
-
-  ※ role 필드에 빈 문자열("")은 절대 금지. 불확실하면 반드시 '성도'를 반환할 것.
-
-[거주지 규칙] — residence 필드:
-  - 카드에 '한국', '귀국', 'Korea' 등이 보이면 → '한국'
-  - 그 외 모든 경우 → '타슈켄트'
-  ※ 타슈켄트에 살면서 한국에 잠시 방문한 경우도 '타슈켄트'로 기록할 것.
+【거주지 규칙】
+- '한국', '귀국', 'Korea' 등이 보이면 → '한국'
+- 그 외 모든 경우 → '타슈켄트'
 
 핵심 규칙:
-- 모든 날짜는 반드시 YYYY-MM-DD 형식으로 변환할 것. (예: "85.3.15" → "1985-03-15")
-- 값을 찾을 수 없는 head/members 필드(name, phone, address, birth)는 빈 문자열("")로 채울 것.
-- role 과 residence 는 절대 빈 문자열로 반환하지 말 것. (폴백: role→"성도", residence→"타슈켄트")
-- metadata는 카드에 실제 내용이 있는 항목만 동적으로 포함할 것. 비어있으면 해당 키를 아예 제외할 것.
-- members 배열에는 세대주를 제외한 나머지 가족만 넣을 것.
-- 가족이 없으면 members를 빈 배열([])로 줄 것.
-- metadata에 내용이 없으면 빈 객체({})로 줄 것.`;
+- 모든 날짜는 반드시 YYYY-MM-DD 형식. 불완전하면(예: 연도만) 해당 연도만.
+- 전화번호는 숫자와 '+'만 남길 것.
+- 값을 찾을 수 없는 필드는 빈 문자열("")로 채울 것. (단, role은 "성도", residence는 "타슈켄트" 폴백)
+- metadata는 실제 내용이 있는 항목만 동적으로 포함할 것. 비어있으면 해당 키 제외.`;
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,7 +129,12 @@ function extractJson(text) {
 // Cloud Function: processDocument
 // ─────────────────────────────────────────────────────────────────────────────
 exports.processDocument = onCall(
-    { secrets: [GOOGLE_API_KEY] },
+    {
+        secrets: [GOOGLE_API_KEY],
+        cors: true,             // 모든 origin 허용 (CORS 에러 방지)
+        timeoutSeconds: 300,    // 타임아웃 5분(300초)으로 연장 (504 Gateway Timeout 방지)
+        memory: "1GB"           // 메모리 1GB 할당 (대용량 이미지 처리용)
+    },
     async (request) => {
 
         // ── STEP 1: 페이로드 수신 및 기본 검증 ──────────────────────────────────
@@ -190,7 +175,13 @@ exports.processDocument = onCall(
         for (const modelName of MODEL_PRIORITY) {
             try {
                 console.log(`[STEP 4] 모델 시도: ${modelName}`);
-                const model = genAI.getGenerativeModel({ model: modelName });
+                const model = genAI.getGenerativeModel({
+                    model: modelName,
+                    generationConfig: {
+                        maxOutputTokens: 8192,
+                        responseMimeType: "application/json"
+                    }
+                });
                 const geminiResult = await model.generateContent([SYSTEM_PROMPT, imagePart]);
                 rawText = geminiResult.response.text();
                 usedModel = modelName;
@@ -213,18 +204,31 @@ exports.processDocument = onCall(
 
         try {
             const jsonString = extractJson(rawText);
-            const parsed = JSON.parse(jsonString);
+            let parsed = JSON.parse(jsonString);
 
-            // 필수 구조 검증
-            if (!parsed.head || typeof parsed.head !== "object") {
-                throw new Error("'head' 객체가 누락된 JSON 구조입니다.");
-            }
-            if (!Array.isArray(parsed.members)) {
-                throw new Error("'members' 배열이 누락된 JSON 구조입니다.");
-            }
-            // metadata 없으면 빈 객체로 보정
-            if (!parsed.metadata || typeof parsed.metadata !== "object") {
-                parsed.metadata = {};
+            // 유연한 예외 처리: members가 없으면 구조 보정 시도
+            if (!parsed.members || !Array.isArray(parsed.members)) {
+                console.warn("[STEP 5] 'members' 배열 없음. 자동 보정 시도...");
+                let fallbackMembers = [];
+
+                if (parsed.head) {
+                    fallbackMembers.push({ ...parsed.head, relation: "세대주" });
+                }
+                if (parsed.families && Array.isArray(parsed.families)) {
+                    parsed.families.forEach(fam => {
+                        if (Array.isArray(fam.members)) {
+                            fallbackMembers.push(...fam.members);
+                        }
+                    });
+                }
+                if (fallbackMembers.length === 0) {
+                    if (Array.isArray(parsed)) fallbackMembers = parsed;
+                    else fallbackMembers = [parsed];
+                }
+
+                parsed = {
+                    members: fallbackMembers
+                };
             }
 
             console.log("[STEP 5] OK — JSON 파싱 성공:", JSON.stringify(parsed).slice(0, 500));

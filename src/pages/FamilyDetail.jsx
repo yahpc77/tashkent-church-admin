@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import MemberForm from '../components/MemberForm';
-import { Loader2, ArrowLeft, Edit3 } from 'lucide-react';
+import { Loader2, ArrowLeft, Edit3, User } from 'lucide-react';
 
 export default function FamilyDetail() {
   const { id } = useParams();
@@ -18,7 +18,14 @@ export default function FamilyDetail() {
         const docRef = doc(db, 'families', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setFamily({ id: docSnap.id, ...docSnap.data() });
+          const familyData = { id: docSnap.id, ...docSnap.data() };
+          
+          // Fetch members from members collection
+          const q = query(collection(db, 'members'), where('familyId', '==', id));
+          const querySnapshot = await getDocs(q);
+          const membersData = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          
+          setFamily({ ...familyData, documentType: 'family', members: membersData });
         } else {
           console.error('No such document!');
         }
@@ -107,13 +114,23 @@ export default function FamilyDetail() {
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold text-indigo-400 mb-3 border-b border-white/10 pb-2">구성원 정보</h3>
+                <h3 className="text-lg font-semibold text-indigo-400 mb-3 border-b border-white/10 pb-2">구성원 정보 (클릭하여 상세 보기)</h3>
                 <div className="space-y-4">
                   {(family.members || []).map((m, idx) => (
-                    <div key={idx} className="bg-[#13131f] p-4 rounded-xl border border-white/5">
+                    <div 
+                      key={m.id || idx} 
+                      onClick={() => navigate(`/member/${m.id}`)}
+                      className="bg-[#13131f] p-4 rounded-xl border border-white/5 cursor-pointer hover:border-indigo-500/50 hover:bg-[#1a1a2e] transition-all group"
+                    >
+                      <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <User size={16} className="text-indigo-400" />
+                          <span className="font-medium text-white">{m.name || '-'}</span>
+                          <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">{m.relation || '-'}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 group-hover:text-indigo-400 transition-colors">상세보기 &rarr;</span>
+                      </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div><span className="text-gray-500 text-xs block mb-1">이름</span>{m.name || '-'}</div>
-                        <div><span className="text-gray-500 text-xs block mb-1">관계</span>{m.relation || '-'}</div>
                         <div><span className="text-gray-500 text-xs block mb-1">직분</span>{m.position || '-'}</div>
                         <div><span className="text-gray-500 text-xs block mb-1">전화번호</span>{m.phone || '-'}</div>
                         <div><span className="text-gray-500 text-xs block mb-1">생년월일</span>{m.birthDate || '-'}</div>

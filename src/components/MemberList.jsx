@@ -79,33 +79,31 @@ function EmptyState({ isSearching }) {
   );
 }
 
+// ── 거주지 매핑 헬퍼 ──────────────────────────────────────────────────────────
+const normalizeResidence = (residenceStatus) => {
+  if (!residenceStatus) return '';
+  if (residenceStatus === '해외/한국') return '한국';
+  if (residenceStatus === '타지' || residenceStatus === '타슈켄트') return '타슈켄트';
+  return residenceStatus;
+};
+
 // ── 멤버 카드 ────────────────────────────────────────────────────────────────────
 function MemberCard({ member }) {
   const navigate = useNavigate();
-  const { name, position, residence, phone, metadata = {}, members = [] } = member;
+  // member는 이제 개인의 정보입니다.
+  const { name, position, residenceStatus, phone, department, relation } = member;
 
-  // 직분 표시: 비어있으면 '성도'
-  const displayPosition = position || members[0]?.position || members[0]?.role || '성도';
-  const displayName     = name || members[0]?.name || '이름 없음';
-  const displayPhone    = phone || members[0]?.phone || '';
-  const displayResidence= residence || (members[0]?.residenceStatus === '해외/한국' ? '한국' : members[0]?.residenceStatus === '타지' ? '타슈켄트' : '');
+  const displayPosition = position || '성도';
+  const displayName     = name || '이름 없음';
+  const displayPhone    = phone || '';
+  const displayResidence= normalizeResidence(residenceStatus);
 
   const residenceStyle = RESIDENCE_STYLE[displayResidence] ?? RESIDENCE_STYLE.default;
   const positionStyle  = POSITION_STYLE[displayPosition]  ?? POSITION_STYLE.default;
 
-  // metadata 칩 목록 (존재하는 항목만)
-  const metaChips = Object.entries(META_ICON).filter(([key]) => metadata[key]);
-
-  // 감성적 텍스트 (motto / prayerRequest)
-  const highlight = metadata.motto || metadata.prayerRequest || null;
-  const highlightLabel = metadata.motto ? '가훈' : '기도제목';
-
-  // 가족 수
-  const familyCount = members.length;
-
   return (
     <article
-      onClick={() => navigate(`/family/${member.id}`)}
+      onClick={() => navigate(`/member/${member.id}`)}
       className="
         group relative bg-[#1e1e2e] border border-white/8 rounded-2xl p-5 flex flex-col gap-4
         hover:border-indigo-500/40 hover:shadow-xl hover:shadow-indigo-900/20
@@ -125,27 +123,34 @@ function MemberCard({ member }) {
         </span>
       )}
 
-      {/* 헤더: 이름 + 직분 */}
+      {/* 헤더: 이름 + 관계/부서 + 직분 */}
       <div className="pr-16">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="text-base font-bold text-white tracking-tight leading-none">
             {displayName}
           </h3>
-          {familyCount > 1 && (
+          {relation && (
             <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
               <Users size={10} />
-              {familyCount}인 가족
+              {relation}
             </span>
           )}
         </div>
-        <span
-          className={`
-            mt-1.5 inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border
-            ${positionStyle.bg} ${positionStyle.text} ${positionStyle.border}
-          `}
-        >
-          {displayPosition}
-        </span>
+        <div className="mt-1.5 flex gap-1.5 flex-wrap">
+          <span
+            className={`
+              inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border
+              ${positionStyle.bg} ${positionStyle.text} ${positionStyle.border}
+            `}
+          >
+            {displayPosition}
+          </span>
+          {department && (
+            <span className="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border bg-white/5 text-gray-400 border-white/10">
+              {department}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 연락처 */}
@@ -174,48 +179,6 @@ function MemberCard({ member }) {
           연락처 없음
         </span>
       )}
-
-      {/* 메타데이터 칩 (학교, 직업, 이전교회) */}
-      {metaChips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {metaChips.map(([key, { icon: Icon, label }]) => (
-            <span
-              key={key}
-              className="
-                flex items-center gap-1.5 text-[11px] text-gray-400 bg-white/5
-                border border-white/8 px-2.5 py-1 rounded-full
-                hover:bg-white/8 transition-colors
-              "
-              title={`${label}: ${metadata[key]}`}
-            >
-              <Icon size={10} className="text-gray-500 shrink-0" />
-              <span className="truncate max-w-[100px]">{metadata[key]}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* 감성 하이라이트 (가훈 / 기도제목) */}
-      {highlight && (
-        <div className="
-          relative flex items-start gap-2.5 bg-gradient-to-r from-indigo-500/5 to-transparent
-          border-l-2 border-indigo-500/40 pl-3 pr-2 py-2 rounded-r-lg
-        ">
-          <Quote size={12} className="text-indigo-400/60 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-[10px] text-indigo-400/70 mb-0.5 font-medium">{highlightLabel}</p>
-            <p className="text-xs text-gray-400 italic leading-relaxed">{highlight}</p>
-          </div>
-        </div>
-      )}
-
-      {/* 주소 (있을 때만) */}
-      {member.address && (
-        <div className="flex items-start gap-1.5 text-[11px] text-gray-600 mt-auto pt-2 border-t border-white/5">
-          <MapPin size={10} className="shrink-0 mt-0.5" />
-          <span className="truncate">{member.address}</span>
-        </div>
-      )}
     </article>
   );
 }
@@ -223,7 +186,7 @@ function MemberCard({ member }) {
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────────────────
 export default function MemberList() {
   const navigate = useNavigate();
-  const [families, setFamilies]           = useState([]);
+  const [membersList, setMembersList]     = useState([]);
   const [isLoading, setIsLoading]         = useState(true);
   const [error, setError]                 = useState(null);
   const [searchTerm, setSearchTerm]       = useState('');
@@ -233,7 +196,7 @@ export default function MemberList() {
 
   // ── Firestore 실시간 구독 ──────────────────────────────────────────────────────
   useEffect(() => {
-    const q = query(collection(db, 'families'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'members'), orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(
       q,
@@ -241,11 +204,8 @@ export default function MemberList() {
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-          // 편의 필드: 세대주 정보를 최상위로 꺼냄 (필터링용)
-          _headName:      doc.data().members?.[0]?.name     || '',
-          _headResidence: doc.data().members?.[0]?.residenceStatus || '',
         }));
-        setFamilies(data);
+        setMembersList(data);
         setIsLoading(false);
         setError(null);
       },
@@ -259,31 +219,21 @@ export default function MemberList() {
     return () => unsubscribe();
   }, []);
 
-  // ── 거주지 매핑 헬퍼 ──────────────────────────────────────────────────────────
-  const normalizeResidence = (residenceStatus) => {
-    if (!residenceStatus) return '';
-    if (residenceStatus === '해외/한국') return '한국';
-    if (residenceStatus === '타지' || residenceStatus === '타슈켄트') return '타슈켄트';
-    return residenceStatus;
-  };
-
   // ── 클라이언트 사이드 필터링 ──────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return families.filter((fam) => {
-      // 이름 검색 (전 가족 구성원 이름 포함)
-      const allNames = (fam.members || []).map((m) => m.name || '').join(' ');
-      const matchSearch = !searchTerm || allNames.includes(searchTerm.trim());
+    return membersList.filter((m) => {
+      // 개인 이름 검색
+      const matchSearch = !searchTerm || (m.name || '').includes(searchTerm.trim());
 
       // 거주지 필터
-      const headResidence = normalizeResidence(fam._headResidence);
+      const residence = normalizeResidence(m.residenceStatus);
       const matchResidence =
         filterResidence === '전체' ||
-        headResidence === filterResidence ||
-        (filterResidence === '한국' && fam._headResidence === '해외/한국');
+        residence === filterResidence;
 
       return matchSearch && matchResidence;
     });
-  }, [families, searchTerm, filterResidence]);
+  }, [membersList, searchTerm, filterResidence]);
 
   const isSearching = searchTerm.trim().length > 0 || filterResidence !== '전체';
 
@@ -374,7 +324,7 @@ export default function MemberList() {
 
           {/* 총 인원 표시 */}
           <span className="ml-auto text-[11px] text-gray-600">
-            {isLoading ? '...' : `${filtered.length}가정`}
+            {isLoading ? '...' : `${filtered.length}명`}
           </span>
         </div>
       </div>
@@ -396,25 +346,12 @@ export default function MemberList() {
         ) : (
           /* 카드 그리드 */
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filtered.map((fam) => {
-              // families 컬렉션 문서 구조 → MemberCard props 정규화
-              const head = fam.members?.[0] || {};
-              return (
-                <MemberCard
-                  key={fam.id}
-                  member={{
-                    id:        fam.id,
-                    name:      head.name,
-                    position:  head.role,
-                    residence: normalizeResidence(head.residenceStatus),
-                    phone:     head.phone,
-                    address:   fam.address,
-                    metadata:  fam.metadata || {},
-                    members:   fam.members  || [],
-                  }}
-                />
-              );
-            })}
+            {filtered.map((member) => (
+              <MemberCard
+                key={member.id}
+                member={member}
+              />
+            ))}
           </div>
         )}
       </div>

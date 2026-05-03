@@ -7,6 +7,7 @@ import Pending from './pages/Pending';
 import Dashboard from './pages/Dashboard';
 import MemberList from './components/MemberList';
 import FamilyDetail from './pages/FamilyDetail';
+import MemberDetail from './pages/MemberDetail';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/" element={<MemberList />} />
             <Route path="/add" element={<Dashboard />} />
             <Route path="/family/:id" element={<FamilyDetail />} />
+            <Route path="/member/:id" element={<MemberDetail />} />
             {/* 추가적인 보호된 라우트는 이곳에 */}
           </Route>
 
