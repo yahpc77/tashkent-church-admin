@@ -4,6 +4,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from '../firebase/config';
 import { Loader2, UploadCloud, X, Plus, Trash2, ChevronDown, ChevronUp, Info, Users, User, List } from 'lucide-react';
+import { DatePickerDropdown, MultiSelectChips } from './SharedUI';
+import ProfileImageCropper from './ProfileImageCropper';
 
 export default function MemberForm({ onCancel, onImageChange, onSuccess, initialData, familyId }) {
   // 문서 타입: 'individual' | 'family' | 'list'
@@ -28,6 +30,11 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
     company: '',
     personalPrayer: '',
     visitLog: [],
+    departments: [],
+    isNewFamilyEduCompleted: false,
+    eduCohort: '',
+    profileImageFile: null,
+    profileImageUrlPreview: null,
     isAiGenerated: {},
   });
 
@@ -289,20 +296,25 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
       for (const member of members) {
         if (!member.name) continue;
 
-        const { isAiGenerated, id, ...memberData } = member;
+        const { isAiGenerated, id, profileImageFile, profileImageUrlPreview, ...memberData } = member;
         const finalMemberData = { ...memberData, updatedAt: serverTimestamp() };
+
+        if (profileImageFile) {
+          const fileRef = ref(storage, `profiles/${Date.now()}_${profileImageFile.name}`);
+          const snapshot = await uploadBytes(fileRef, profileImageFile);
+          finalMemberData.profileImageUrl = await getDownloadURL(snapshot.ref);
+        }
 
         if (currentFamilyId) {
           finalMemberData.familyId = currentFamilyId;
         }
         if (address) finalMemberData.address = address;
-        if (imageUrl && documentType !== 'family') finalMemberData.imageUrl = imageUrl;
+        if (imageUrl && documentType !== 'family') finalMemberData.documentImageUrl = imageUrl;
 
-        // 중복 체크 (이름 + 생년월일)
+        // 중복 체크 (이름만 사용하여 명단 병합 - 동명이인을 유니크한 이름으로 관리한다고 가정)
         const q = query(
           collection(db, 'members'),
-          where('name', '==', memberData.name),
-          where('birthDate', '==', memberData.birthDate || '')
+          where('name', '==', memberData.name)
         );
         const querySnapshot = await getDocs(q);
 
@@ -521,6 +533,16 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
                   </div>
                 )}
 
+                <div className="flex flex-col gap-2">
+                  <label className="block text-xs text-gray-500">프로필 사진</label>
+                  <ProfileImageCropper 
+                    initialImage={member.profileImageUrlPreview} 
+                    onImageCropped={(file, previewUrl) => {
+                      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, profileImageFile: file, profileImageUrlPreview: previewUrl } : m));
+                    }} 
+                  />
+                </div>
+
                 <div className={`grid gap-3 w-full ${documentType === 'list' ? 'grid-cols-2 lg:grid-cols-6' : 'grid-cols-2 lg:grid-cols-3'}`}>
                   {documentType === 'family' && (
                     <div className="col-span-2 lg:col-span-1">
@@ -554,14 +576,12 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
                       {positions.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
-                  <div>
+                  <div className="col-span-2 lg:col-span-1">
                     <label className="block text-[10px] text-gray-500 mb-1">생년월일</label>
-                    <input
-                      type="date"
+                    <DatePickerDropdown
                       value={member.birthDate}
-                      onChange={(e) => handleMemberChange(member.id, 'birthDate', e.target.value)}
+                      onChange={(val) => handleMemberChange(member.id, 'birthDate', val)}
                       style={{ color: member.isAiGenerated?.birthDate ? '#f87171' : 'inherit' }}
-                      className="w-full bg-[#13131f] border border-white/5 rounded-lg px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none [color-scheme:dark]"
                     />
                   </div>
                   <div>
@@ -586,6 +606,30 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
                       />
                     </div>
                   )}
+                  <div className="col-span-2 lg:col-span-2">
+                    <label className="block text-[10px] text-gray-500 mb-1">다중 부서 (태그)</label>
+                    <MultiSelectChips
+                      value={member.departments}
+                      onChange={(val) => handleMemberChange(member.id, 'departments', val)}
+                      style={{ borderColor: member.isAiGenerated?.departments ? '#f87171' : '' }}
+                    />
+                  </div>
+                  <div className="col-span-2 lg:col-span-1">
+                    <label className="block text-[10px] text-gray-500 mb-1">새가족 수료 여부</label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
+                          <input type="radio" checked={member.isNewFamilyEduCompleted === true} onChange={() => handleMemberChange(member.id, 'isNewFamilyEduCompleted', true)} className="accent-indigo-500" /> 수료
+                        </label>
+                        <label className="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
+                          <input type="radio" checked={member.isNewFamilyEduCompleted !== true} onChange={() => { handleMemberChange(member.id, 'isNewFamilyEduCompleted', false); handleMemberChange(member.id, 'eduCohort', null); }} className="accent-indigo-500" /> 미수료
+                        </label>
+                      </div>
+                      {member.isNewFamilyEduCompleted && (
+                        <input type="number" placeholder="기수 숫자만 입력 (예: 24)" value={member.eduCohort || ''} onChange={(e) => handleMemberChange(member.id, 'eduCohort', e.target.value)} className="w-full bg-[#13131f] border border-white/5 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none" />
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

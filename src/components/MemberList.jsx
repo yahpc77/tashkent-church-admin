@@ -150,6 +150,16 @@ function MemberCard({ member }) {
               {department}
             </span>
           )}
+          {member.departments && member.departments.length > 0 && member.departments.map(d => (
+            <span key={d} className="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border bg-indigo-500/10 text-indigo-300 border-indigo-500/20">
+              {d}
+            </span>
+          ))}
+          {member.isNewFamilyEduCompleted && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+              새가족 {member.eduCohort && `(${member.eduCohort})`}
+            </span>
+          )}
         </div>
       </div>
 
@@ -191,8 +201,32 @@ export default function MemberList() {
   const [error, setError]                 = useState(null);
   const [searchTerm, setSearchTerm]       = useState('');
   const [filterResidence, setFilterResidence] = useState('전체');
+  const [filterDepartment, setFilterDepartment] = useState('전체');
+  const [filterNewFamily, setFilterNewFamily] = useState(false);
+  const [filterCohort, setFilterCohort] = useState('전체');
 
   const residenceFilters = ['전체', '타슈켄트', '한국'];
+
+  // 동적 필터 옵션 계산
+  const allDepartments = useMemo(() => {
+    const set = new Set();
+    membersList.forEach(m => {
+      if (m.departments && Array.isArray(m.departments)) {
+        m.departments.forEach(d => set.add(d));
+      }
+    });
+    return ['전체', ...Array.from(set).sort()];
+  }, [membersList]);
+
+  const cohorts = useMemo(() => {
+    const set = new Set();
+    membersList.forEach(m => {
+      if (m.isNewFamilyEduCompleted && m.eduCohort) {
+        set.add(m.eduCohort);
+      }
+    });
+    return ['전체', ...Array.from(set).sort()];
+  }, [membersList]);
 
   // ── Firestore 실시간 구독 ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -231,11 +265,19 @@ export default function MemberList() {
         filterResidence === '전체' ||
         residence === filterResidence;
 
-      return matchSearch && matchResidence;
-    });
-  }, [membersList, searchTerm, filterResidence]);
+      // 다중 부서 필터
+      const matchDepartment = filterDepartment === '전체' || 
+                              (m.departments && m.departments.includes(filterDepartment));
+      
+      // 새가족 수료자 및 기수 필터
+      const matchNewFamily = !filterNewFamily || m.isNewFamilyEduCompleted;
+      const matchCohort = filterCohort === '전체' || m.eduCohort === filterCohort;
 
-  const isSearching = searchTerm.trim().length > 0 || filterResidence !== '전체';
+      return matchSearch && matchResidence && matchDepartment && matchNewFamily && matchCohort;
+    });
+  }, [membersList, searchTerm, filterResidence, filterDepartment, filterNewFamily, filterCohort]);
+
+  const isSearching = searchTerm.trim().length > 0 || filterResidence !== '전체' || filterDepartment !== '전체' || filterNewFamily;
 
   // ── 에러 UI ───────────────────────────────────────────────────────────────────
   if (error) {
@@ -292,42 +334,79 @@ export default function MemberList() {
           )}
         </div>
 
-        {/* 거주지 필터 토글 버튼 */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-gray-600 shrink-0">거주지</span>
-          <div className="flex gap-1.5">
-            {residenceFilters.map((filter) => {
-              const isActive = filterResidence === filter;
-              const style =
-                filter === '타슈켄트' ? RESIDENCE_STYLE.타슈켄트 :
-                filter === '한국'    ? RESIDENCE_STYLE.한국 :
-                null;
-              return (
-                <button
-                  key={filter}
-                  onClick={() => setFilterResidence(filter)}
-                  className={`
-                    text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150
-                    ${isActive
-                      ? style
-                        ? `${style.bg} ${style.text} ${style.border} shadow-sm`
-                        : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
-                      : 'bg-transparent text-gray-500 border-white/10 hover:border-white/20 hover:text-gray-300'
-                    }
-                  `}
-                >
-                  {filter}
-                </button>
-              );
-            })}
+          {/* 거주지 필터 토글 버튼 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-gray-600 shrink-0">거주지</span>
+            <div className="flex gap-1.5">
+              {residenceFilters.map((filter) => {
+                const isActive = filterResidence === filter;
+                const style =
+                  filter === '타슈켄트' ? RESIDENCE_STYLE.타슈켄트 :
+                  filter === '한국'    ? RESIDENCE_STYLE.한국 :
+                  null;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setFilterResidence(filter)}
+                    className={`
+                      text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150
+                      ${isActive
+                        ? style
+                          ? `${style.bg} ${style.text} ${style.border} shadow-sm`
+                          : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
+                        : 'bg-transparent text-gray-500 border-white/10 hover:border-white/20 hover:text-gray-300'
+                      }
+                    `}
+                  >
+                    {filter}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 총 인원 표시 */}
+            <span className="ml-auto text-[11px] text-gray-600">
+              {isLoading ? '...' : `${filtered.length}명`}
+            </span>
           </div>
 
-          {/* 총 인원 표시 */}
-          <span className="ml-auto text-[11px] text-gray-600">
-            {isLoading ? '...' : `${filtered.length}명`}
-          </span>
+          {/* 추가 필터 영역 (부서, 새가족) */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 pt-2 border-t border-white/5">
+            {/* 부서별 검색 */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-600 shrink-0">부서/직분</span>
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                className="bg-[#13131f] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-indigo-500"
+              >
+                {allDepartments.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+
+            {/* 새가족 필터 */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filterNewFamily}
+                  onChange={(e) => setFilterNewFamily(e.target.checked)}
+                  className="accent-indigo-500"
+                />
+                새가족 수료자
+              </label>
+              {filterNewFamily && (
+                <select
+                  value={filterCohort}
+                  onChange={(e) => setFilterCohort(e.target.value)}
+                  className="bg-[#13131f] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-indigo-500"
+                >
+                  {cohorts.map(c => <option key={c} value={c}>{c === '전체' ? '기수 전체' : c}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* ── 메인 카드 그리드 ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
