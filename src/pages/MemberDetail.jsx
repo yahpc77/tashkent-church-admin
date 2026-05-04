@@ -54,10 +54,19 @@ export default function MemberDetail() {
     );
   }
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '-';
+  const formatDisplayDate = (dateVal) => {
+    if (!dateVal) return '-';
+    if (typeof dateVal === 'string') {
+      const parts = dateVal.split('-');
+      if (parts.length === 2) {
+        return `${parseInt(parts[0], 10)}월 ${parseInt(parts[1], 10)}일`;
+      } else if (parts.length === 3) {
+        return `${parts[0]}년 ${parseInt(parts[1], 10)}월 ${parseInt(parts[2], 10)}일`;
+      }
+      return dateVal;
+    }
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const date = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
       if (isNaN(date.getTime())) return '-';
       return date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
     } catch (e) {
@@ -68,7 +77,7 @@ export default function MemberDetail() {
   // Safe date formatter for <input type="date">
   const formatDateForInput = (raw) => {
     if (!raw) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{2}-\d{2}$/.test(raw)) return raw;
     const d = new Date(raw);
     if (!isNaN(d.getTime())) {
       return d.toISOString().split('T')[0];
@@ -83,6 +92,7 @@ export default function MemberDetail() {
       isNewFamilyEduCompleted: member.isNewFamilyEduCompleted || false,
       eduCohort: member.eduCohort || '',
       birthDate: formatDateForInput(member.birthDate),
+      registrationDate: member.registrationDate || '',
       visitLogStr: (member.visitLog || []).join('\n\n'),
       profileImageFile: null,
       profileImageUrlPreview: member.profileImageUrl || null
@@ -117,7 +127,8 @@ export default function MemberDetail() {
         position: editForm.position,
         company: editForm.company,
         phone: editForm.phone,
-        birthDate: editForm.birthDate,
+        birthDate: editForm.birthDate || null,
+        registrationDate: editForm.registrationDate || null,
         department: editForm.department,
         departments: editForm.departments || [],
         residenceStatus: editForm.residenceStatus,
@@ -243,6 +254,10 @@ export default function MemberDetail() {
                     <DatePickerDropdown value={editForm.birthDate} onChange={(val) => setEditForm(prev => ({...prev, birthDate: val}))} />
                   </div>
                   <div>
+                    <label className="block text-xs text-gray-500 mb-1">등록일 (선택)</label>
+                    <input type="date" name="registrationDate" value={editForm.registrationDate || ''} onChange={handleChange} className="w-full bg-[#13131f] border border-white/10 rounded-lg px-3 py-2 focus:border-indigo-500 outline-none text-white [color-scheme:dark]" />
+                  </div>
+                  <div>
                     <label className="block text-xs text-gray-500 mb-1">소속 부서 (연령)</label>
                     <input type="text" name="department" value={editForm.department || ''} onChange={handleChange} className="w-full bg-[#13131f] border border-white/10 rounded-lg px-3 py-2 focus:border-indigo-500 outline-none text-white" />
                   </div>
@@ -299,8 +314,8 @@ export default function MemberDetail() {
                   <div><span className="text-gray-500 block text-xs mb-1">직분</span> {member.position || '-'}</div>
                   <div><span className="text-gray-500 block text-xs mb-1">회사/직장</span> {member.company || '-'}</div>
                   <div><span className="text-gray-500 block text-xs mb-1">전화번호</span> {member.phone || '-'}</div>
-                  <div><span className="text-gray-500 block text-xs mb-1">생년월일</span> {member.birthDate || '-'}</div>
-                  <div><span className="text-gray-500 block text-xs mb-1">등록일</span> {formatDate(member.createdAt)}</div>
+                  <div><span className="text-gray-500 block text-xs mb-1">생년월일</span> {formatDisplayDate(member.birthDate)}</div>
+                  <div><span className="text-gray-500 block text-xs mb-1">등록일</span> {formatDisplayDate(member.registrationDate)}</div>
                   <div><span className="text-gray-500 block text-xs mb-1">부서 (연령)</span> {member.department || '-'}</div>
                   <div className="col-span-2 md:col-span-3">
                     <span className="text-gray-500 block text-xs mb-1">부서 / 직분</span>

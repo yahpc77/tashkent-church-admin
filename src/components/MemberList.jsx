@@ -16,6 +16,7 @@ import {
   Loader2,
   UserPlus,
 } from 'lucide-react';
+import BulkUpdateModal from './BulkUpdateModal';
 
 // ── 뱃지 색상 매핑 ──────────────────────────────────────────────────────────────
 const RESIDENCE_STYLE = {
@@ -204,6 +205,7 @@ export default function MemberList() {
   const [filterDepartment, setFilterDepartment] = useState('전체');
   const [filterNewFamily, setFilterNewFamily] = useState(false);
   const [filterCohort, setFilterCohort] = useState('전체');
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const residenceFilters = ['전체', '타슈켄트', '한국'];
 
@@ -368,6 +370,13 @@ export default function MemberList() {
             <span className="ml-auto text-[11px] text-gray-600">
               {isLoading ? '...' : `${filtered.length}명`}
             </span>
+            
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20 transition-colors ml-2"
+            >
+              부서 일괄 추가
+            </button>
           </div>
 
           {/* 추가 필터 영역 (부서, 새가족) */}
@@ -455,6 +464,11 @@ export default function MemberList() {
         <UserPlus size={17} strokeWidth={2.5} />
         <span>성도 등록</span>
       </button>
+
+      <BulkUpdateModal 
+        isOpen={isBulkModalOpen} 
+        onClose={() => setIsBulkModalOpen(false)} 
+      />
     </div>
   );
 }

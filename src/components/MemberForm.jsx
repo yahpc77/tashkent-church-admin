@@ -8,8 +8,8 @@ import { DatePickerDropdown, MultiSelectChips } from './SharedUI';
 import ProfileImageCropper from './ProfileImageCropper';
 
 export default function MemberForm({ onCancel, onImageChange, onSuccess, initialData, familyId }) {
-  // 문서 타입: 'individual' | 'family' | 'list'
   const [documentType, setDocumentType] = useState(initialData?.documentType || 'individual');
+  const [isManualAdd, setIsManualAdd] = useState(false);
 
   const [address, setAddress]     = useState(initialData?.address || '');
   const [addressAi, setAddressAi] = useState(false);
@@ -23,6 +23,7 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
     name: '',
     phone: '',
     birthDate: '',
+    registrationDate: '',
     position: '성도',
     attendanceStatus: '출석',
     residenceStatus: '타슈켄트',
@@ -66,7 +67,10 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
   const calculateDepartment = (birthDateStr, birthYearStr) => {
     let year = NaN;
     if (birthDateStr) {
-      year = parseInt(birthDateStr.split('-')[0], 10);
+      const parts = birthDateStr.split('-');
+      if (parts.length === 3) {
+        year = parseInt(parts[0], 10);
+      }
     }
     if (isNaN(year) && birthYearStr) {
       year = parseInt(birthYearStr, 10);
@@ -298,6 +302,9 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
 
         const { isAiGenerated, id, profileImageFile, profileImageUrlPreview, ...memberData } = member;
         const finalMemberData = { ...memberData, updatedAt: serverTimestamp() };
+        if (!finalMemberData.registrationDate) {
+          finalMemberData.registrationDate = null;
+        }
 
         if (profileImageFile) {
           const fileRef = ref(storage, `profiles/${Date.now()}_${profileImageFile.name}`);
@@ -375,31 +382,53 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
         </div>
 
         {/* 폼 타입 선택기 (수동 변경 가능) */}
-        <div className="flex bg-[#13131f] p-1 rounded-xl mb-6 border border-white/5">
-          {[
-            { id: 'individual', label: '개인', icon: User },
-            { id: 'family', label: '가족', icon: Users },
-            { id: 'list', label: '리스트', icon: List }
-          ].map(type => (
-            <button
-              key={type.id}
-              type="button"
-              onClick={() => {
-                setDocumentType(type.id);
-                if (type.id === 'individual' && members.length > 1) {
-                  setMembers([members[0]]);
-                }
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
-                documentType === type.id 
-                  ? 'bg-indigo-600 text-white shadow-lg' 
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <type.icon size={16} />
-              {type.label}
-            </button>
-          ))}
+        <div className="flex flex-col mb-6 gap-3">
+          <div className="flex bg-[#13131f] p-1 rounded-xl border border-white/5">
+            {[
+              { id: 'individual', label: '개인', icon: User },
+              { id: 'family', label: '가족', icon: Users },
+              { id: 'list', label: '리스트', icon: List }
+            ].map(type => (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => {
+                  setDocumentType(type.id);
+                  if (type.id !== 'individual') setIsManualAdd(false);
+                  if (type.id === 'individual' && members.length > 1) {
+                    setMembers([members[0]]);
+                  }
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  documentType === type.id 
+                    ? 'bg-indigo-600 text-white shadow-lg' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <type.icon size={16} />
+                {type.label}
+              </button>
+            ))}
+          </div>
+
+          {documentType === 'individual' && (
+            <div className="flex bg-[#1a1a2e] p-1 rounded-lg border border-white/5 self-start">
+              <button
+                type="button"
+                onClick={() => setIsManualAdd(false)}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${!isManualAdd ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                카드 스캔 등록
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsManualAdd(true)}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${isManualAdd ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                직접 타이핑 (빠른 등록)
+              </button>
+            </div>
+          )}
         </div>
 
         {aiSummary && (
@@ -411,26 +440,28 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2">
           {/* 사진 첨부 */}
-          <div className="bg-[#13131f] p-4 rounded-xl border border-white/5">
-            <label className="text-sm font-medium text-gray-300 block mb-2">이미지 스캔본 첨부</label>
-            <div
-              className="relative border-2 border-dashed border-gray-600 rounded-xl hover:border-indigo-500 transition-colors bg-[#1a1a2e] flex flex-col items-center justify-center p-6 cursor-pointer"
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={isOcrLoading}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-              />
-              <UploadCloud className="text-gray-400 mb-2" size={28} />
-              <span className="text-sm text-gray-300">
-                {file ? file.name : '클릭하거나 파일을 드래그하여 업로드 (AI가 타입 자동 판별)'}
-              </span>
+          {(!isManualAdd || documentType !== 'individual') && (
+            <div className="bg-[#13131f] p-4 rounded-xl border border-white/5">
+              <label className="text-sm font-medium text-gray-300 block mb-2">이미지 스캔본 첨부</label>
+              <div
+                className="relative border-2 border-dashed border-gray-600 rounded-xl hover:border-indigo-500 transition-colors bg-[#1a1a2e] flex flex-col items-center justify-center p-6 cursor-pointer"
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={isOcrLoading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <UploadCloud className="text-gray-400 mb-2" size={28} />
+                <span className="text-sm text-gray-300">
+                  {file ? file.name : '클릭하거나 파일을 드래그하여 업로드 (AI가 타입 자동 판별)'}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 가족 폼일 경우: 공통 주소 및 메타데이터 */}
           {(documentType === 'family' || documentType === 'individual') && (
@@ -582,6 +613,15 @@ export default function MemberForm({ onCancel, onImageChange, onSuccess, initial
                       value={member.birthDate}
                       onChange={(val) => handleMemberChange(member.id, 'birthDate', val)}
                       style={{ color: member.isAiGenerated?.birthDate ? '#f87171' : 'inherit' }}
+                    />
+                  </div>
+                  <div className="col-span-2 lg:col-span-1">
+                    <label className="block text-[10px] text-gray-500 mb-1">등록일 (선택)</label>
+                    <input 
+                      type="date"
+                      value={member.registrationDate || ''}
+                      onChange={(e) => handleMemberChange(member.id, 'registrationDate', e.target.value)}
+                      className="w-full bg-[#13131f] border border-white/5 rounded-lg px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none [color-scheme:dark]"
                     />
                   </div>
                   <div>
